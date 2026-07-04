@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Framely n'est pas sandboxé (il a besoin de ScreenCaptureKit, du
+	presse-papiers système et des raccourcis globaux, peu compatibles avec
+	l'App Sandbox). Aucune entitlement spéciale n'est nécessaire pour la
+	capture d'écran elle-même : macOS gère ça via une autorisation TCC
+	("Enregistrement de l'écran") demandée à l'exécution, pas via une
+	entitlement de build. Ce fichier reste un point d'entrée pour en ajouter
+	si un futur build signé Developer ID en a besoin (notarisation, etc.).
+	-->
+</dict>
+</plist>

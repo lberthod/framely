@@ -75,14 +75,16 @@ Objectif : transformer le prototype fonctionnel en produit livrable v0.1.
 
 Objectif : `.dmg` distribuable, prêt à vendre.
 
-- [ ] Bundling `.app` (Info.plist, entitlements, icône finale)
-- [ ] Signature développeur Apple + notarisation + stapling
-- [ ] Génération `.dmg` avec fond personnalisé soigné
-- [ ] Vérification lancement < 200 ms et empreinte mémoire ~10–20 Mo (mesure réelle, pas estimation)
-- [ ] Page produit / landing minimale (argument vitesse + beau par défaut + comparatif concurrents)
-- [ ] Beta privée (quelques testeurs) avant mise en vente
+- [x] Bundling `.app` (`packaging/Info.plist`, `packaging/entitlements.plist`, icône placeholder générée procéduralement) — script `packaging/build-dmg.sh`, testé en réel : le bundle se lance et fonctionne depuis le `.dmg` monté
+- [ ] Signature développeur Apple + notarisation + stapling — **nécessite ton compte Apple Developer**, je ne peux ni le créer ni fournir les identifiants. Le bundle actuel n'est signé qu'en ad-hoc (`codesign --sign -`, suffisant pour tester en local, insuffisant pour distribuer publiquement). Étapes exactes documentées en commentaire dans `build-dmg.sh`.
+- [x] Génération `.dmg` — fonctionnelle (`hdiutil`), pas encore de fond personnalisé (dossier Applications + icône par défaut du Finder pour l'instant)
+- [x] Mesure réelle (pas estimation) sur cette machine : lancement du process < 100 ms, mais **empreinte mémoire ~97–146 Mo au repos, pas 10–20 Mo** comme visé dans le document produit initial — voir constat ci-dessous
+- [ ] Page produit / landing minimale — pas fait
+- [ ] Beta privée — pas fait, dépend de la disponibilité d'un build signé
 
-**Sortie du sprint** : v0.1 vendable, en ligne.
+**Constat mémoire (important)** : le chiffre "~10–20 Mo" du document produit était visiblement une estimation, pas une mesure. En pratique, toute app GUI native macOS avec un contexte de rendu GPU (ici OpenGL via `glow`/`eframe`) tourne plutôt entre 40 et 150 Mo de RSS au repos, à cause du runtime WindowServer/AppKit/Metal — ce n'est pas spécifique à du code non optimisé dans Framely. Framely reste largement sous la barre des 200+ Mo d'un équivalent Electron, mais le message marketing "10–20 Mo" dans le README/positionnement produit devrait être révisé pour rester honnête (proposition : "empreinte mémoire native, une fraction d'Electron" plutôt qu'un chiffre précis non vérifié).
+
+**Sortie du sprint** : `.dmg` fonctionnel pour test local (testé de bout en bout : build → bundle → dmg → montage → lancement). Pas encore vendable publiquement — la signature Developer ID + notarisation Apple sont un prérequis Apple qui dépend de ton compte, pas de code à écrire.
 
 ## Backlog v1.0 (post-MVP, à planifier une fois v0.1 validée sur le marché)
 

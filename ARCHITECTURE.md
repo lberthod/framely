@@ -2,7 +2,7 @@
 
 ## 1. Contraintes qui pilotent l'architecture
 
-- **Lancement < 200 ms**, empreinte mémoire ~10–20 Mo → pas d'Electron/Chromium, pas de webview lourde.
+- **Lancement < 200 ms**, empreinte mémoire native (une fraction d'un équivalent Electron) → pas d'Electron/Chromium, pas de webview lourde. *Mesuré au Sprint 4 : lancement du process < 100 ms, ~97–146 Mo de RSS au repos (contexte OpenGL/WindowServer inclus) — largement sous les 200+ Mo d'Electron, mais le chiffre "10–20 Mo" de la version initiale de ce document était une estimation non vérifiée, pas une mesure ; voir SPRINT.md Sprint 4.*
 - **Preview 60 fps** sur chaque changement de réglage (marge, fond, coins, ombre) → rendu 2D accéléré, pas de re-render CPU naïf à chaque frame.
 - **Vit en menu bar** en tâche de fond entre deux captures → doit être négligeable au repos (pas de polling, pas de timer actif).
 - **macOS only** (v1) → on peut s'appuyer directement sur ScreenCaptureKit, AppKit, Core Animation plutôt que sur une couche d'abstraction cross-platform inutile.
