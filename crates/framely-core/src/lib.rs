@@ -129,6 +129,25 @@ impl Document {
     pub fn reset_to_default(&mut self) {
         self.apply_style(Style::default());
     }
+
+    /// Pousse `previous` sur la pile d'annulation sans changer `self.style`.
+    /// Utilisé pour les réglages continus (curseurs) : l'appelant mute déjà
+    /// `style` en direct à chaque frame pour la preview, et n'appelle
+    /// `commit_history` qu'une fois le geste terminé (relâchement du
+    /// curseur), pour ne pousser qu'une seule entrée d'annulation par geste
+    /// plutôt qu'une par frame de glissement.
+    pub fn commit_history(&mut self, previous: Style) {
+        self.history.push(previous);
+        self.redo_stack.clear();
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.history.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -160,5 +179,30 @@ mod tests {
         assert_eq!(doc.style.padding, 128);
 
         assert!(!doc.redo());
+    }
+
+    #[test]
+    fn commit_history_supports_drag_style_edits() {
+        let mut doc = Document::new(dummy_image());
+        let original_padding = doc.style.padding;
+        let snapshot = doc.style.clone();
+
+        // Simule un glisser de curseur : mutation directe à chaque frame...
+        doc.style.padding = 50;
+        doc.style.padding = 90;
+        doc.style.padding = 128;
+        assert!(!doc.can_undo());
+
+        // ...puis une seule entrée d'annulation au relâchement.
+        doc.commit_history(snapshot);
+        assert!(doc.can_undo());
+        assert!(!doc.can_redo());
+
+        assert!(doc.undo());
+        assert_eq!(doc.style.padding, original_padding);
+        assert!(doc.can_redo());
+
+        assert!(doc.redo());
+        assert_eq!(doc.style.padding, 128);
     }
 }

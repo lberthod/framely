@@ -57,16 +57,17 @@ Objectif : le flux critique complet fonctionne avec de vraies captures.
 
 Objectif : transformer le prototype fonctionnel en produit livrable v0.1.
 
-- [ ] Ratios export (Auto, 16:9, 1:1, 4:3, 3:2 + presets réseaux X/Instagram/LinkedIn)
-- [ ] Échelle @2x à l'export
-- [ ] Undo/redo (⌘Z/⇧⌘Z) sur la pile `Style`, réinitialisation (⌘R) vers l'auto-balance
-- [ ] Drag-out de la preview vers une autre app
-- [ ] Persistance des derniers réglages/dossier/ratio/format entre sessions (`framely-presets`)
-- [ ] Cas limites : très grandes captures (downscale preview / export plein), PNG transparent (damier), multi-écrans/échelles mixtes, presse-papiers vide
-- [ ] Accessibilité de base : navigation clavier complète, labels VoiceOver, respect « Réduire les animations »
-- [ ] Onboarding minimal : demande permission expliquée + écran unique montrant les 2 raccourcis clés, image de démo pré-enjolivée
-- [ ] Passage complet de tous les raccourcis clavier du README
-- [ ] Tests manuels du parcours complet sur plusieurs configs (mono/multi-écran, Retina/non-Retina)
+- [x] Ratios export (Auto, 16:9, 1:1, 4:3, 3:2 + presets réseaux X/Instagram/LinkedIn) — X et Instagram réutilisent les mêmes proportions que 16:9/1:1 (pas de ratio dédié différent), LinkedIn a son propre 1200:627
+- [x] Échelle @2x à l'export (fait au Sprint 1)
+- [x] Undo/redo (⌘Z/⇧⌘Z) sur la pile `Style` + boutons dédiés, réinitialisation (⌘R) vers l'auto-balance. Les curseurs (marge/coins/ombre) ne poussent qu'une entrée d'annulation par geste de glisser (pas une par frame) via `Document::commit_history` — testé (`framely-core` : 4 tests unitaires)
+- [ ] Drag-out de la preview vers une autre app — toujours différé, nécessite un pont `objc2`/`NSDraggingSession` non trivial
+- [x] Persistance des derniers réglages (ratio/échelle/fond) et dernier dossier d'export entre sessions, dans `~/Library/Application Support/Framely/settings.json` — testé en écriture/lecture disque réelles
+- [x] Cas limites : damier de transparence dans la preview (fond réellement transparent à l'export), downscale de la preview pour les images > 2200px (l'export reste pleine résolution) — testés unitairement (`framely-app::preview`, 4 tests). Presse-papiers vide déjà géré (Sprint 2, `IoError::ClipboardEmpty`).
+- [ ] Multi-écrans/échelles mixtes : pas encore de gestion dédiée (l'overlay et les captures ciblent l'écran principal par défaut)
+- [~] Accessibilité de base : navigation clavier complète sur les réglages (curseurs, combos, boutons) déjà supportée nativement par `egui`/`accesskit` (VoiceOver) sans code dédié ; le respect de « Réduire les animations » n'a pas été vérifié explicitly
+- [ ] Onboarding minimal (écran de bienvenue avec les 2 raccourcis clés) — pas fait, l'app démarre directement sur l'éditeur avec l'image de démo
+- [x] Raccourcis clavier du README implémentés dans l'app : ⌘Z/⇧⌘Z/⌘R/⌘C/⌘V/⌘S/←→ (⇧⌘2/⇧⌘4 déjà globaux depuis le Sprint 2)
+- [ ] Tests manuels du parcours complet sur plusieurs configs (mono/multi-écran, Retina/non-Retina) — non faits, nécessite du matériel supplémentaire ou une validation par toi
 
 **Sortie du sprint** : v0.1 complète et testée, prête pour packaging.
 

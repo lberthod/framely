@@ -1,16 +1,32 @@
 //! Framely — enjoliveur de screenshots.
-//! Sprint 2 : capture d'écran réelle (ScreenCaptureKit), presse-papiers,
-//! raccourcis globaux et menu bar, avec overlay plein écran interactif pour
-//! la sélection de zone par glisser-déposer.
+//! Sprint 3 : undo/redo, raccourcis clavier complets, persistance des
+//! réglages, ratios réseaux sociaux, damier de transparence et downscale
+//! de preview pour les très grandes images.
 
 mod demo_image;
 mod overlay;
+mod preview;
 mod system_integration;
 
-use framely_core::{Background, Document, Ratio, Scale};
+use framely_core::{Background, Document, Ratio, Scale, Style};
 use overlay::{OverlayOutcome, SelectionOverlay};
 use std::time::Duration;
 use system_integration::{SystemAction, SystemIntegration};
+
+/// Preview downscalée à cette taille max (px) pour les très grandes
+/// captures (5K/6K) — l'export continue de travailler en pleine résolution.
+const MAX_PREVIEW_DIM: u32 = 2200;
+
+const RATIO_PRESETS: &[(&str, Ratio)] = &[
+    ("Auto", Ratio::Auto),
+    ("16:9", Ratio::Fixed(16, 9)),
+    ("1:1", Ratio::Fixed(1, 1)),
+    ("4:3", Ratio::Fixed(4, 3)),
+    ("3:2", Ratio::Fixed(3, 2)),
+    ("X / Twitter", Ratio::Fixed(16, 9)),
+    ("Instagram", Ratio::Fixed(1, 1)),
+    ("LinkedIn", Ratio::Fixed(1200, 627)),
+];
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -34,13 +50,22 @@ struct FramelyApp {
     window_picker_open: bool,
     available_windows: Vec<framely_capture::WindowInfo>,
     selection_overlay: SelectionOverlay,
+    settings: framely_presets::AppSettings,
+    /// Snapshot du style pris au début d'un glisser de curseur, pour ne
+    /// pousser qu'une seule entrée d'annulation par geste (voir
+    /// `Document::commit_history`).
+    slider_edit_snapshot: Option<Style>,
 }
 
 impl FramelyApp {
     fn new() -> Self {
+        let settings = framely_presets::load_settings();
         let source = demo_image::generate(900, 560);
         let mut document = Document::new(source);
         document.style = framely_render::auto_balance(&document.source);
+        document.style.ratio = settings.last_ratio;
+        document.style.scale = settings.last_scale;
+        document.style.background = Background::Gradient(settings.last_background_id.clone());
 
         Self {
             document,
@@ -51,6 +76,8 @@ impl FramelyApp {
             window_picker_open: false,
             available_windows: Vec::new(),
             selection_overlay: SelectionOverlay::new(),
+            settings,
+            slider_edit_snapshot: None,
         }
     }
 
@@ -60,9 +87,25 @@ impl FramelyApp {
         }
         if let Some(rendered) = framely_render::render(&self.document.source, &self.document.style)
         {
+            let pixels = if matches!(self.document.style.background, Background::Transparent) {
+                preview::composite_on_checkerboard(
+                    rendered.width,
+                    rendered.height,
+                    &rendered.pixels,
+                )
+            } else {
+                rendered.pixels
+            };
+            let (width, height, pixels) = preview::downscale_for_preview(
+                rendered.width,
+                rendered.height,
+                &pixels,
+                MAX_PREVIEW_DIM,
+            );
+
             let image = egui::ColorImage::from_rgba_unmultiplied(
-                [rendered.width as usize, rendered.height as usize],
-                &rendered.pixels,
+                [width as usize, height as usize],
+                &pixels,
             );
             self.texture = Some(ctx.load_texture("preview", image, egui::TextureOptions::LINEAR));
         }
@@ -72,7 +115,31 @@ impl FramelyApp {
     fn load_source(&mut self, source: framely_core::RawImage) {
         self.document = Document::new(source);
         self.document.style = framely_render::auto_balance(&self.document.source);
+        self.document.style.ratio = self.settings.last_ratio;
+        self.document.style.scale = self.settings.last_scale;
+        self.document.style.background =
+            Background::Gradient(self.settings.last_background_id.clone());
         self.dirty = true;
+    }
+
+    /// Applique une modification discrète (choix de fond/ratio, case à
+    /// cocher, bouton) en poussant l'état précédent sur la pile d'annulation.
+    fn edit_style(&mut self, f: impl FnOnce(&mut Style)) {
+        let mut new_style = self.document.style.clone();
+        f(&mut new_style);
+        self.document.apply_style(new_style);
+        self.dirty = true;
+    }
+
+    fn persist_settings(&mut self) {
+        self.settings.last_ratio = self.document.style.ratio;
+        self.settings.last_scale = self.document.style.scale;
+        if let Background::Gradient(id) = &self.document.style.background {
+            self.settings.last_background_id = id.clone();
+        }
+        if let Err(e) = framely_presets::save_settings(&self.settings) {
+            self.status = format!("Réglages non sauvegardés : {e}");
+        }
     }
 
     fn handle_system_action(&mut self, action: SystemAction, ctx: &egui::Context) {
@@ -159,16 +226,81 @@ impl FramelyApp {
             pixels: rendered.pixels,
         };
 
-        if let Some(path) = rfd::FileDialog::new()
+        let mut dialog = rfd::FileDialog::new()
             .set_file_name("framely.png")
-            .add_filter("PNG", &["png"])
-            .save_file()
-        {
+            .add_filter("PNG", &["png"]);
+        if let Some(dir) = &self.settings.last_export_dir {
+            dialog = dialog.set_directory(dir);
+        }
+
+        if let Some(path) = dialog.save_file() {
             match framely_io::export_to_file(&image, &path) {
-                Ok(()) => self.status = format!("Exporté vers {}", path.display()),
+                Ok(()) => {
+                    self.status = format!("Exporté vers {}", path.display());
+                    if let Some(parent) = path.parent() {
+                        self.settings.last_export_dir = Some(parent.to_path_buf());
+                        self.persist_settings();
+                    }
+                }
                 Err(e) => self.status = format!("Export impossible : {e}"),
             }
         }
+    }
+
+    fn cycle_background(&mut self, direction: i32) {
+        let gradients = framely_presets::builtin_gradients();
+        let current_idx = match &self.document.style.background {
+            Background::Gradient(id) => gradients.iter().position(|g| &g.id == id).unwrap_or(0),
+            _ => 0,
+        };
+        let len = gradients.len() as i32;
+        let next_idx = ((current_idx as i32 + direction).rem_euclid(len)) as usize;
+        let next_id = gradients[next_idx].id.clone();
+        self.edit_style(|style| style.background = Background::Gradient(next_id));
+        self.persist_settings();
+    }
+
+    fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
+        use egui::{Key, KeyboardShortcut, Modifiers};
+
+        let undo = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
+        let redo = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
+        let reset = KeyboardShortcut::new(Modifiers::COMMAND, Key::R);
+        let copy = KeyboardShortcut::new(Modifiers::COMMAND, Key::C);
+        let paste = KeyboardShortcut::new(Modifiers::COMMAND, Key::V);
+        let export = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
+
+        ctx.input_mut(|i| {
+            if i.consume_shortcut(&redo) {
+                if self.document.redo() {
+                    self.dirty = true;
+                    self.status = "Rétabli".to_string();
+                }
+            } else if i.consume_shortcut(&undo) && self.document.undo() {
+                self.dirty = true;
+                self.status = "Annulé".to_string();
+            }
+            if i.consume_shortcut(&reset) {
+                self.document.reset_to_default();
+                self.dirty = true;
+                self.status = "Réinitialisé".to_string();
+            }
+            if i.consume_shortcut(&copy) {
+                self.copy_result_to_clipboard();
+            }
+            if i.consume_shortcut(&paste) {
+                self.paste_from_clipboard();
+            }
+            if i.consume_shortcut(&export) {
+                self.export_result_to_file();
+            }
+            if i.key_pressed(Key::ArrowRight) {
+                self.cycle_background(1);
+            }
+            if i.key_pressed(Key::ArrowLeft) {
+                self.cycle_background(-1);
+            }
+        });
     }
 }
 
@@ -199,6 +331,7 @@ impl eframe::App for FramelyApp {
             }
         }
 
+        self.handle_keyboard_shortcuts(ctx);
         self.refresh_preview(ctx);
 
         egui::TopBottomPanel::top("actions_bar").show(ctx, |ui| {
@@ -222,7 +355,7 @@ impl eframe::App for FramelyApp {
                     self.status, self.document.source.width, self.document.source.height
                 ));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label("⌘C copier · ⇧⌘2 capturer · ⌘V coller");
+                    ui.label("⌘C copier · ⇧⌘2 capturer · ⌘V coller · ⌘Z annuler");
                 });
             });
         });
@@ -255,64 +388,88 @@ impl eframe::App for FramelyApp {
                                 Background::Gradient(id) if id == &preset.id
                             );
                             if ui.selectable_label(selected, &preset.label).clicked() {
-                                self.document.style.background =
-                                    Background::Gradient(preset.id.clone());
-                                self.dirty = true;
+                                let id = preset.id.clone();
+                                self.edit_style(|style| {
+                                    style.background = Background::Gradient(id)
+                                });
+                                self.persist_settings();
                             }
                         }
+                        let transparent_selected =
+                            matches!(self.document.style.background, Background::Transparent);
+                        if ui
+                            .selectable_label(transparent_selected, "Transparent")
+                            .clicked()
+                        {
+                            self.edit_style(|style| style.background = Background::Transparent);
+                            self.persist_settings();
+                        }
                     });
+                ui.label("← / → pour parcourir les dégradés");
                 ui.add_space(8.0);
 
                 let mut padding = self.document.style.padding;
-                if ui
-                    .add(egui::Slider::new(&mut padding, 0..=200).text("Marge"))
-                    .changed()
-                {
+                let resp = ui.add(egui::Slider::new(&mut padding, 0..=200).text("Marge"));
+                if resp.drag_started() {
+                    self.slider_edit_snapshot = Some(self.document.style.clone());
+                }
+                if resp.changed() {
                     self.document.style.padding = padding;
                     self.dirty = true;
                 }
+                if resp.drag_stopped() {
+                    if let Some(prev) = self.slider_edit_snapshot.take() {
+                        self.document.commit_history(prev);
+                    }
+                }
 
                 let mut corner_radius = self.document.style.corner_radius;
-                if ui
-                    .add(egui::Slider::new(&mut corner_radius, 0.0..=48.0).text("Coins"))
-                    .changed()
-                {
+                let resp = ui.add(egui::Slider::new(&mut corner_radius, 0.0..=48.0).text("Coins"));
+                if resp.drag_started() {
+                    self.slider_edit_snapshot = Some(self.document.style.clone());
+                }
+                if resp.changed() {
                     self.document.style.corner_radius = corner_radius;
                     self.dirty = true;
                 }
+                if resp.drag_stopped() {
+                    if let Some(prev) = self.slider_edit_snapshot.take() {
+                        self.document.commit_history(prev);
+                    }
+                }
 
                 let mut shadow_intensity = self.document.style.shadow.intensity;
-                if ui
-                    .add(egui::Slider::new(&mut shadow_intensity, 0.0..=1.0).text("Ombre"))
-                    .changed()
-                {
+                let resp =
+                    ui.add(egui::Slider::new(&mut shadow_intensity, 0.0..=1.0).text("Ombre"));
+                if resp.drag_started() {
+                    self.slider_edit_snapshot = Some(self.document.style.clone());
+                }
+                if resp.changed() {
                     self.document.style.shadow.intensity = shadow_intensity;
                     self.dirty = true;
+                }
+                if resp.drag_stopped() {
+                    if let Some(prev) = self.slider_edit_snapshot.take() {
+                        self.document.commit_history(prev);
+                    }
                 }
 
                 ui.separator();
                 ui.label("Ratio");
-                let ratio_label = match self.document.style.ratio {
-                    Ratio::Auto => "Auto",
-                    Ratio::Fixed(16, 9) => "16:9",
-                    Ratio::Fixed(1, 1) => "1:1",
-                    Ratio::Fixed(4, 3) => "4:3",
-                    Ratio::Fixed(3, 2) => "3:2",
-                    Ratio::Fixed(_, _) => "Personnalisé",
-                };
+                let ratio_label = RATIO_PRESETS
+                    .iter()
+                    .find(|(_, r)| ratios_equal(*r, self.document.style.ratio))
+                    .map(|(label, _)| *label)
+                    .unwrap_or("Personnalisé");
                 egui::ComboBox::from_id_salt("ratio_picker")
                     .selected_text(ratio_label)
                     .show_ui(ui, |ui| {
-                        for (label, ratio) in [
-                            ("Auto", Ratio::Auto),
-                            ("16:9", Ratio::Fixed(16, 9)),
-                            ("1:1", Ratio::Fixed(1, 1)),
-                            ("4:3", Ratio::Fixed(4, 3)),
-                            ("3:2", Ratio::Fixed(3, 2)),
-                        ] {
-                            if ui.selectable_label(ratio_label == label, label).clicked() {
-                                self.document.style.ratio = ratio;
-                                self.dirty = true;
+                        for (label, ratio) in RATIO_PRESETS {
+                            let selected = ratios_equal(*ratio, self.document.style.ratio);
+                            if ui.selectable_label(selected, *label).clicked() {
+                                let ratio = *ratio;
+                                self.edit_style(|style| style.ratio = ratio);
+                                self.persist_settings();
                             }
                         }
                     });
@@ -320,13 +477,33 @@ impl eframe::App for FramelyApp {
                 ui.separator();
                 let mut scale_x2 = matches!(self.document.style.scale, Scale::X2);
                 if ui.checkbox(&mut scale_x2, "Export @2x").changed() {
-                    self.document.style.scale = if scale_x2 { Scale::X2 } else { Scale::X1 };
-                    self.dirty = true;
+                    let scale = if scale_x2 { Scale::X2 } else { Scale::X1 };
+                    self.edit_style(|style| style.scale = scale);
+                    self.persist_settings();
                 }
 
                 ui.separator();
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(self.document.can_undo(), egui::Button::new("Annuler (⌘Z)"))
+                        .clicked()
+                        && self.document.undo()
+                    {
+                        self.dirty = true;
+                    }
+                    if ui
+                        .add_enabled(
+                            self.document.can_redo(),
+                            egui::Button::new("Rétablir (⇧⌘Z)"),
+                        )
+                        .clicked()
+                        && self.document.redo()
+                    {
+                        self.dirty = true;
+                    }
+                });
                 if ui.button("Réinitialiser (⌘R)").clicked() {
-                    self.document.style = framely_render::auto_balance(&self.document.source);
+                    self.document.reset_to_default();
                     self.dirty = true;
                 }
 
@@ -394,5 +571,13 @@ impl eframe::App for FramelyApp {
                 self.capture_window(id);
             }
         }
+    }
+}
+
+fn ratios_equal(a: Ratio, b: Ratio) -> bool {
+    match (a, b) {
+        (Ratio::Auto, Ratio::Auto) => true,
+        (Ratio::Fixed(aw, ah), Ratio::Fixed(bw, bh)) => aw == bw && ah == bh,
+        _ => false,
     }
 }

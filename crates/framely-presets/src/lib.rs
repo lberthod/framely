@@ -1,6 +1,8 @@
 //! Presets de dégradés, presets de marque, persistance des réglages utilisateur.
 
+use framely_core::{Ratio, Scale};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GradientPreset {
@@ -100,13 +102,89 @@ pub fn gradient_by_id(id: &str) -> GradientPreset {
         .unwrap_or_else(|| gradients[0].clone())
 }
 
-#[derive(Debug)]
-pub enum PresetsError {
-    NotImplemented,
+/// Réglages qui survivent entre deux lancements de l'app : dernier dossier
+/// d'export, dernier ratio/échelle/fond choisis explicitement par
+/// l'utilisateur (l'auto-balance continue de s'appliquer à chaque nouvelle
+/// image, mais ces trois préférences priment une fois l'image chargée).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppSettings {
+    pub last_export_dir: Option<PathBuf>,
+    pub last_ratio: Ratio,
+    pub last_scale: Scale,
+    pub last_background_id: String,
 }
 
-/// Charge les derniers réglages/dossier/ratio/format persistés.
-/// Stub Sprint 0 — implémentation disque au Sprint 3.
-pub fn load_last_settings() -> Result<(), PresetsError> {
-    Err(PresetsError::NotImplemented)
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            last_export_dir: None,
+            last_ratio: Ratio::default(),
+            last_scale: Scale::default(),
+            last_background_id: "default".to_string(),
+        }
+    }
+}
+
+fn settings_path() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("Framely")
+            .join("settings.json"),
+    )
+}
+
+/// Charge les derniers réglages persistés, ou les valeurs par défaut si
+/// aucun fichier n'existe encore (premier lancement) ou s'il est illisible.
+pub fn load_settings() -> AppSettings {
+    settings_path()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|contents| serde_json::from_str(&contents).ok())
+        .unwrap_or_default()
+}
+
+/// Persiste les réglages sur disque, dans
+/// `~/Library/Application Support/Framely/settings.json`.
+pub fn save_settings(settings: &AppSettings) -> std::io::Result<()> {
+    let path = settings_path().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "dossier utilisateur introuvable",
+        )
+    })?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(settings).map_err(std::io::Error::other)?;
+    std::fs::write(path, json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gradient_by_id_falls_back_to_first_preset() {
+        let known = gradient_by_id("ocean");
+        assert_eq!(known.id, "ocean");
+
+        let unknown = gradient_by_id("does-not-exist");
+        assert_eq!(unknown.id, builtin_gradients()[0].id);
+    }
+
+    #[test]
+    fn settings_roundtrip_through_json() {
+        let settings = AppSettings {
+            last_export_dir: Some(PathBuf::from("/tmp/framely-exports")),
+            last_ratio: Ratio::Fixed(16, 9),
+            last_scale: Scale::X1,
+            last_background_id: "ocean".to_string(),
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.last_export_dir, settings.last_export_dir);
+        assert_eq!(restored.last_background_id, settings.last_background_id);
+    }
 }
