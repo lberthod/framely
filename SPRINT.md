@@ -7,12 +7,12 @@ Voir [ARCHITECTURE.md](ARCHITECTURE.md) pour le détail technique des modules ci
 
 Objectif : projet qui compile, fenêtre vide qui s'ouvre, décisions de nom/design figées.
 
-- [ ] Trancher le nom définitif (Framely retenu par défaut) + réserver nom de domaine / bundle id
-- [ ] Initialiser repo git + workspace Cargo (`framely-app`, `framely-core`, `framely-render`, `framely-capture`, `framely-io`, `framely-presets`)
-- [ ] Squelette `eframe`/`egui` : fenêtre principale avec layout preview (gauche) + panneau réglages (droite) + barre d'état, sans logique
+- [x] Trancher le nom de travail (Framely retenu par défaut) — réservation domaine / bundle id encore à faire par toi
+- [x] Initialiser repo git + workspace Cargo (`framely-app`, `framely-core`, `framely-render`, `framely-capture`, `framely-io`, `framely-presets`)
+- [x] Squelette `eframe`/`egui` : fenêtre principale avec layout preview (gauche) + panneau réglages (droite) + barre d'état, sans logique
 - [ ] Icône app + identité visuelle de base (palette, typo SF Pro)
-- [ ] Choix définitif des libs : `tiny-skia`, binding ScreenCaptureKit, `arboard`/NSPasteboard
-- [ ] Setup CI basique (build + clippy + tests)
+- [x] Choix définitif des libs : `tiny-skia`, binding ScreenCaptureKit (à venir Sprint 2), `arboard`/NSPasteboard (à venir Sprint 2)
+- [x] Setup CI basique (build + clippy + tests)
 
 **Sortie du sprint** : `cargo run` ouvre une fenêtre avec le layout statique de l'éditeur.
 

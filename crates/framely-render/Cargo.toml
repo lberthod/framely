@@ -1,0 +1,9 @@
+[package]
+name = "framely-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+framely-core.workspace = true
+tiny-skia.workspace = true

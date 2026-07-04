@@ -1,0 +1,18 @@
+[package]
+name = "framely-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "framely"
+path = "src/main.rs"
+
+[dependencies]
+framely-core.workspace = true
+framely-render.workspace = true
+framely-capture.workspace = true
+framely-io.workspace = true
+framely-presets.workspace = true
+eframe.workspace = true
+egui.workspace = true
