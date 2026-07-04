@@ -6,3 +6,5 @@ license.workspace = true
 
 [dependencies]
 framely-core.workspace = true
+arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

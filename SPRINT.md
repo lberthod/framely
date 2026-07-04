@@ -33,15 +33,22 @@ Objectif : à partir d'une image chargée en dur, obtenir le rendu enjolivé com
 
 Objectif : le flux critique complet fonctionne avec de vraies captures.
 
-- [ ] `framely-capture` : capture de zone via ScreenCaptureKit + overlay plein écran (assombrissement, réticule, dimensions live)
-- [ ] Capture de fenêtre (détection au survol + surbrillance)
-- [ ] Raccourci global ⇧⌘2 (et ⇧⌘4 pour fenêtre) enregistré au niveau système
-- [ ] `framely-io` : coller (⌘V) depuis presse-papiers, glisser-déposer sur fenêtre/Dock, import fichier PNG/JPEG/HEIC
-- [ ] `framely-io` : copier le résultat (⌘C) vers presse-papiers, export fichier (⌘S) avec mémorisation du dernier dossier
-- [ ] Menu bar (`NSStatusItem`) : icône + menu Capturer zone / Capturer fenêtre / Coller / Réglages / Quitter
-- [ ] Gestion permission « Capture d'écran » (demande, refus → fallback mode import)
+- [x] `framely-capture` : capture d'écran réelle via ScreenCaptureKit (écran entier, fenêtre précise, zone rectangulaire par coordonnées) — testé en conditions réelles sur cette machine (capture 3440×1440 + liste de 39 fenêtres)
+- [x] Capture de fenêtre — sélection via une liste cliquable des fenêtres visibles (`list_windows`), pas encore par survol avec surbrillance (voir gap ci-dessous)
+- [x] Raccourci global ⇧⌘2 (zone = écran entier pour l'instant) et ⇧⌘4 (fenêtre) enregistrés via `global-hotkey`
+- [x] `framely-io` : coller (⌘V) depuis presse-papiers (arboard, testé en réel), import fichier PNG/JPEG (HEIC non supporté par la crate `image`, backlog)
+- [x] `framely-io` : copier le résultat (⌘C) vers presse-papiers (testé en réel), export fichier PNG via dialogue natif (`rfd`)
+- [x] Menu bar (`tray-icon`) : icône + menu Capturer zone / Capturer fenêtre / Coller / Quitter (pas encore d'entrée "Réglages" séparée, les réglages sont déjà dans le panneau principal)
+- [ ] Gestion permission « Capture d'écran » : le mapping d'erreur existe (`CaptureError::PermissionDenied`) mais le fallback UX (message clair + bascule mode import) n'est pas encore affiné
 
-**Sortie du sprint** : flux n°1 complet — ⇧⌘2 → sélection → éditeur auto-enjolivé → ⌘C → collable ailleurs, en moins de 3 secondes.
+**Gaps connus, non couverts par ce sprint (à traiter avant v0.1) :**
+- Pas d'overlay plein écran interactif pour la sélection de zone par glisser-déposer (l'aperçu en direct des dimensions, l'assombrissement de l'écran) — "Capturer une zone" capture l'écran principal en entier pour l'instant. C'est un chantier UI à part entière (fenêtre transparente plein écran + suivi souris).
+- Pas de détection de fenêtre au survol avec surbrillance — la capture de fenêtre passe par une liste cliquable.
+- Le drag-out (glisser la preview vers une autre app) n'est pas branché (prévu Sprint 3, nécessite un pont `objc2`/`NSDraggingSession`).
+- Import HEIC non supporté (la crate `image` ne le décode pas).
+- Identité visuelle de l'icône menu bar toujours provisoire (carré arrondi indigo procédural).
+
+**Sortie du sprint** : flux bout-en-bout fonctionnel — ⇧⌘2 → capture réelle → éditeur auto-enjolivé → ⌘C → collable ailleurs. La sélection de zone n'est pas encore interactive (capture l'écran entier), c'est le principal écart avec la vision initiale du sprint.
 
 ## Sprint 3 — Finitions MVP & robustesse (semaine 4)
 

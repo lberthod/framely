@@ -1,0 +1,12 @@
+# screencapturekit statically links a Swift bridge that depends on the Swift
+# Concurrency runtime. Its build script emits an rpath for /usr/lib/swift, but
+# that flag does not reliably propagate across the dependency graph to the
+# final binary (cargo only guarantees rustc-link-arg for the emitting crate's
+# own targets), so the final `framely` binary fails to load at runtime with
+# `dyld: Library not loaded: @rpath/libswift_Concurrency.dylib` unless we add
+# the rpath here explicitly.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]

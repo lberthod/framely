@@ -6,3 +6,4 @@ license.workspace = true
 
 [dependencies]
 framely-core.workspace = true
+screencapturekit = { version = "8.0.0", features = ["macos_14_2"] }
