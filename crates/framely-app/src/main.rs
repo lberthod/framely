@@ -1,14 +1,14 @@
 //! Framely — enjoliveur de screenshots.
 //! Sprint 2 : capture d'écran réelle (ScreenCaptureKit), presse-papiers,
-//! raccourcis globaux et menu bar. La sélection interactive d'une zone par
-//! glisser-déposer (overlay plein écran) est un chantier à part entière,
-//! laissé en backlog — voir SPRINT.md ; "Capturer une zone" capture pour
-//! l'instant l'écran principal en entier.
+//! raccourcis globaux et menu bar, avec overlay plein écran interactif pour
+//! la sélection de zone par glisser-déposer.
 
 mod demo_image;
+mod overlay;
 mod system_integration;
 
 use framely_core::{Background, Document, Ratio, Scale};
+use overlay::{OverlayOutcome, SelectionOverlay};
 use std::time::Duration;
 use system_integration::{SystemAction, SystemIntegration};
 
@@ -33,6 +33,7 @@ struct FramelyApp {
     system: SystemIntegration,
     window_picker_open: bool,
     available_windows: Vec<framely_capture::WindowInfo>,
+    selection_overlay: SelectionOverlay,
 }
 
 impl FramelyApp {
@@ -49,6 +50,7 @@ impl FramelyApp {
             system: SystemIntegration::new(),
             window_picker_open: false,
             available_windows: Vec::new(),
+            selection_overlay: SelectionOverlay::new(),
         }
     }
 
@@ -75,18 +77,23 @@ impl FramelyApp {
 
     fn handle_system_action(&mut self, action: SystemAction, ctx: &egui::Context) {
         match action {
-            SystemAction::CaptureZone => self.capture_zone(),
+            SystemAction::CaptureZone => self.start_zone_selection(),
             SystemAction::CaptureWindow => self.open_window_picker(),
             SystemAction::Paste => self.paste_from_clipboard(),
             SystemAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
         }
     }
 
-    fn capture_zone(&mut self) {
-        match framely_capture::capture_display(None) {
+    fn start_zone_selection(&mut self) {
+        self.selection_overlay.open();
+        self.status = "Glissez pour sélectionner une zone (Échap pour annuler)".to_string();
+    }
+
+    fn capture_region(&mut self, x: f64, y: f64, width: f64, height: f64, scale: f32) {
+        match framely_capture::capture_region(None, x, y, width, height, scale as f64) {
             Ok(image) => {
                 self.load_source(image);
-                self.status = "Capture d'écran effectuée".to_string();
+                self.status = "Zone capturée".to_string();
             }
             Err(e) => self.status = format!("Capture impossible : {e}"),
         }
@@ -174,6 +181,22 @@ impl eframe::App for FramelyApp {
 
         if let Some(action) = self.system.poll() {
             self.handle_system_action(action, ctx);
+        }
+
+        if self.selection_overlay.is_active() {
+            match self.selection_overlay.show(ctx) {
+                OverlayOutcome::Selected {
+                    x,
+                    y,
+                    width,
+                    height,
+                    pixels_per_point,
+                } => self.capture_region(x, y, width, height, pixels_per_point),
+                OverlayOutcome::Cancelled => {
+                    self.status = "Sélection annulée".to_string();
+                }
+                OverlayOutcome::None => {}
+            }
         }
 
         self.refresh_preview(ctx);
@@ -309,7 +332,7 @@ impl eframe::App for FramelyApp {
 
                 ui.separator();
                 if ui.button("Capturer une zone (⇧⌘2)").clicked() {
-                    self.capture_zone();
+                    self.start_zone_selection();
                 }
                 if ui.button("Capturer une fenêtre (⇧⌘4)").clicked() {
                     self.open_window_picker();

@@ -148,14 +148,18 @@ pub fn capture_window(window_id: u32) -> Result<RawImage, CaptureError> {
     cgimage_to_raw(&image)
 }
 
-/// Capture une zone rectangulaire (en points) de l'écran donné.
-/// Utilisé pour la capture de zone après sélection par glisser-déposer.
+/// Capture une zone rectangulaire de l'écran donné. `x`/`y`/`width`/`height`
+/// sont en points (comme les coordonnées d'une fenêtre ou d'un overlay de
+/// sélection egui) ; `scale` (typiquement le `pixels_per_point` de l'écran,
+/// 2.0 en Retina) détermine la résolution de sortie en pixels, pour un
+/// export net.
 pub fn capture_region(
     display_id: Option<u32>,
     x: f64,
     y: f64,
     width: f64,
     height: f64,
+    scale: f64,
 ) -> Result<RawImage, CaptureError> {
     let content = SCShareableContent::get().map_err(map_sc_error)?;
     let displays = content.displays();
@@ -177,8 +181,8 @@ pub fn capture_region(
         .set_content_rect(rect);
 
     let config = SCStreamConfiguration::new()
-        .with_width(width.round() as u32)
-        .with_height(height.round() as u32);
+        .with_width((width * scale).round() as u32)
+        .with_height((height * scale).round() as u32);
 
     let image = SCScreenshotManager::capture_image(&filter, &config).map_err(map_sc_error)?;
     cgimage_to_raw(&image)

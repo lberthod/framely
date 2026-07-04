@@ -41,14 +41,17 @@ Objectif : le flux critique complet fonctionne avec de vraies captures.
 - [x] Menu bar (`tray-icon`) : icône + menu Capturer zone / Capturer fenêtre / Coller / Quitter (pas encore d'entrée "Réglages" séparée, les réglages sont déjà dans le panneau principal)
 - [ ] Gestion permission « Capture d'écran » : le mapping d'erreur existe (`CaptureError::PermissionDenied`) mais le fallback UX (message clair + bascule mode import) n'est pas encore affiné
 
+- [x] Overlay plein écran interactif pour la sélection de zone par glisser-déposer (assombrissement, rectangle de sélection, dimensions en direct, Échap pour annuler) — implémenté via le support multi-viewport natif d'egui (`show_viewport_immediate`), branché sur `framely_capture::capture_region`
+
 **Gaps connus, non couverts par ce sprint (à traiter avant v0.1) :**
-- Pas d'overlay plein écran interactif pour la sélection de zone par glisser-déposer (l'aperçu en direct des dimensions, l'assombrissement de l'écran) — "Capturer une zone" capture l'écran principal en entier pour l'instant. C'est un chantier UI à part entière (fenêtre transparente plein écran + suivi souris).
+- L'overlay se place sur l'écran principal par défaut (`with_fullscreen` sans écran ciblé explicitement) — pas nécessairement celui sous le curseur en configuration multi-écrans.
 - Pas de détection de fenêtre au survol avec surbrillance — la capture de fenêtre passe par une liste cliquable.
 - Le drag-out (glisser la preview vers une autre app) n'est pas branché (prévu Sprint 3, nécessite un pont `objc2`/`NSDraggingSession`).
 - Import HEIC non supporté (la crate `image` ne le décode pas).
 - Identité visuelle de l'icône menu bar toujours provisoire (carré arrondi indigo procédural).
+- **Le geste de glisser-déposer de l'overlay n'a pas pu être testé interactivement de bout en bout** : l'app n'étant pas encore empaquetée en `.app`, je n'ai pas pu lui accorder l'accès aux outils de contrôle d'écran pour simuler un vrai drag souris, et l'automatisation de la frappe clavier système (`osascript`) a été bloquée par macOS (permission Accessibilité non accordée). Le code compile, type-check contre l'API réelle d'egui/screencapturekit, et l'app démarre sans crash avec l'overlay chargé — mais le geste lui-même reste à valider manuellement.
 
-**Sortie du sprint** : flux bout-en-bout fonctionnel — ⇧⌘2 → capture réelle → éditeur auto-enjolivé → ⌘C → collable ailleurs. La sélection de zone n'est pas encore interactive (capture l'écran entier), c'est le principal écart avec la vision initiale du sprint.
+**Sortie du sprint** : flux bout-en-bout fonctionnel — ⇧⌘2 → sélection interactive d'une zone → capture réelle → éditeur auto-enjolivé → ⌘C → collable ailleurs. À valider manuellement : le geste de glisser-déposer de l'overlay (voir gap ci-dessus).
 
 ## Sprint 3 — Finitions MVP & robustesse (semaine 4)
 
