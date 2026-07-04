@@ -1164,6 +1164,7 @@ name = "framely-render"
 version = "0.1.0"
 dependencies = [
  "framely-core",
+ "framely-presets",
  "tiny-skia",
 ]
 

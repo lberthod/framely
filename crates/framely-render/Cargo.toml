@@ -6,4 +6,5 @@ license.workspace = true
 
 [dependencies]
 framely-core.workspace = true
+framely-presets.workspace = true
 tiny-skia.workspace = true

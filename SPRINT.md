@@ -20,12 +20,12 @@ Objectif : projet qui compile, fenêtre vide qui s'ouvre, décisions de nom/desi
 
 Objectif : à partir d'une image chargée en dur, obtenir le rendu enjolivé complet.
 
-- [ ] `framely-core` : types `Document`, `Style`, `Background`, `Ratio`, `ShadowParams`
-- [ ] `framely-render` : composition fond (dégradé/couleur/transparent) + marge + coins arrondis + ombre via `tiny-skia`
-- [ ] Upload de la texture rendue dans `egui` (`TextureHandle`) et affichage dans la zone preview
-- [ ] Panneau réglages fonctionnel : sliders marge/coins/ombre, sélecteur de fond, mis à jour en direct (pas de bouton Appliquer)
-- [ ] Fonction `auto_balance()` : valeurs par défaut esthétiques appliquées à l'ouverture d'une image
-- [ ] 12–16 presets de dégradés validés visuellement
+- [x] `framely-core` : types `Document`, `Style`, `Background`, `Ratio`, `ShadowParams`
+- [x] `framely-render` : composition fond (dégradé/couleur/transparent) + marge + coins arrondis + ombre via `tiny-skia`
+- [x] Upload de la texture rendue dans `egui` (`TextureHandle`) et affichage dans la zone preview
+- [x] Panneau réglages fonctionnel : sliders marge/coins/ombre, sélecteur de fond, mis à jour en direct (pas de bouton Appliquer)
+- [x] Fonction `auto_balance()` : valeurs par défaut esthétiques appliquées à l'ouverture d'une image
+- [x] 14 presets de dégradés en place (`framely-presets`) — validation esthétique définitive encore à faire par toi
 
 **Sortie du sprint** : on peut charger une image de test et jouer avec tous les réglages visuels en direct.
 
